@@ -17,10 +17,17 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build & Push Backend1 Image
+      - name: Build frontend image
         run: |
-          docker build -t arunkumar885825/frontend:${{ github.sha }} .
+          docker build \
+            -t arunkumar885825/frontend:${{ github.sha }} \
+            -t arunkumar885825/frontend:latest \
+            .
+
+      - name: Push frontend image
+        run: |
           docker push arunkumar885825/frontend:${{ github.sha }}
+          docker push arunkumar885825/frontend:latest
 
       - name: Trigger deployment update
         run: |
