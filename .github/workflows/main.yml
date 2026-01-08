@@ -36,11 +36,12 @@
 #             -H "Accept: application/vnd.github.v3+json" \
 #             https://api.github.com/repos/arunkumar-create/deployment/dispatches \
 #             -d '{"event_type":"frontend_updated","client_payload":{"tag":"'"${{ github.sha }}"'"}}'
-name: Backend CI - Build & Trigger Deploy
+name: Backend CI - Build & Trigger Deploy (with SonarQube)
 
 on:
   push:
-    branches: ["main"]
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -50,41 +51,67 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # -----------------------
+      # 1️⃣ CHECKOUT CODE
+      # -----------------------
       - name: Checkout code
         uses: actions/checkout@v4
-      
-      #2️⃣ Setup JDK (adjust if backend is NOT Java)
+        with:
+          fetch-depth: 0
+
+      # -----------------------
+      # 2️⃣ SETUP JAVA (for backend + SonarQube)
+      # -----------------------
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: temurin
+          java-version: 17
 
-      # 3️⃣ SonarQube Scan
+      # -----------------------
+      # 3️⃣ SONARQUBE SCAN (NO CODE CHANGE)
+      # -----------------------
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v2
+        with:
+          args: >
+            -Dsonar.projectKey=backend
+            -Dsonar.projectName=backend
+            -Dsonar.sources=.
+            -Dsonar.exclusions=**/target/**,**/node_modules/**
+            -Dsonar.sourceEncoding=UTF-8
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 
-      # 4️⃣ SonarQube Quality Gate (BLOCK build if failed)
+      # -----------------------
+      # 4️⃣ SONARQUBE QUALITY GATE (BLOCK PIPELINE)
+      # -----------------------
       - name: SonarQube Quality Gate
         uses: SonarSource/sonarqube-quality-gate-action@v1
         timeout-minutes: 5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-      
-      # 5️⃣ Login to Docker Hub
+
+      # -----------------------
+      # 5️⃣ LOGIN TO DOCKER HUB
+      # -----------------------
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
+      # -----------------------
+      # 6️⃣ SET IMAGE TAG (SHORT SHA)
+      # -----------------------
       - name: Set image tag
         run: echo "IMAGE_TAG=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
+      # -----------------------
+      # 7️⃣ BUILD BACKEND IMAGE
+      # -----------------------
       - name: Build backend image
         run: |
           docker build \
@@ -92,12 +119,18 @@ jobs:
             -t arunkumar885825/backend:latest \
             .
 
+      # -----------------------
+      # 8️⃣ PUSH BACKEND IMAGE
+      # -----------------------
       - name: Push backend image
         run: |
           docker push arunkumar885825/backend:${IMAGE_TAG}
           docker push arunkumar885825/backend:latest
 
-      - name: Trigger deployment
+      # -----------------------
+      # 9️⃣ TRIGGER DEPLOYMENT REPO
+      # -----------------------
+      - name: Trigger deployment pipeline
         run: |
           curl -X POST \
             -H "Authorization: token ${{ secrets.DEPLOYMENT_REPO_TOKEN }}" \
