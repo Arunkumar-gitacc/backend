@@ -86,3 +86,80 @@
 #                 "backend_tag": "'"${IMAGE_TAG}"'"
 #               }
 #             }'
+name: Backend CI + CD (uat / test / demo)
+
+on:
+  push:
+    branches:
+      - uat
+      - test
+      - demo
+    paths:
+      - "backend/**"
+
+permissions:
+  contents: read
+
+jobs:
+  backend-ci-cd:
+    runs-on: ubuntu-latest
+
+    steps:
+      # -----------------------
+      # CHECKOUT CODE
+      # -----------------------
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # -----------------------
+      # SET BRANCH NAME
+      # -----------------------
+      - name: Set branch name
+        run: |
+          echo "BRANCH_NAME=${GITHUB_REF##*/}" >> $GITHUB_ENV
+
+      # -----------------------
+      # LOGIN TO DOCKER HUB
+      # -----------------------
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # -----------------------
+      # BUILD BACKEND IMAGE
+      # -----------------------
+      - name: Build backend image
+        run: |
+          docker build \
+            -t arunkumar885825/backend:${BRANCH_NAME} \
+            ./backend
+
+      # -----------------------
+      # PUSH BACKEND IMAGE
+      # -----------------------
+      - name: Push backend image
+        run: |
+          docker push arunkumar885825/backend:${BRANCH_NAME}
+
+      # -----------------------
+      # CD - DEPLOY BACKEND
+      # -----------------------
+      - name: Deploy backend (branch specific)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+            echo "🚀 Deploying BACKEND for branch: ${BRANCH_NAME}"
+
+            cd /home/ec2-user/${BRANCH_NAME}
+            export BRANCH_NAME=${BRANCH_NAME}
+
+            docker compose pull backend
+            docker compose up -d backend
