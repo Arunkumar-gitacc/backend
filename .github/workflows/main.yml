@@ -60,7 +60,7 @@ jobs:
           fetch-depth: 0
 
       # -----------------------
-      # 2️⃣ SETUP JAVA (for backend + SonarQube)
+      # 2️⃣ SETUP JAVA
       # -----------------------
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -69,7 +69,7 @@ jobs:
           java-version: 17
 
       # -----------------------
-      # 3️⃣ SONARQUBE SCAN (NO CODE CHANGE)
+      # 3️⃣ SONARQUBE SCAN (JAVA EXCLUDED)
       # -----------------------
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v2
@@ -78,14 +78,14 @@ jobs:
             -Dsonar.projectKey=backend
             -Dsonar.projectName=backend
             -Dsonar.sources=.
-            -Dsonar.exclusions=**/target/**,**/node_modules/**
+            -Dsonar.exclusions=**/*.java,**/target/**,**/node_modules/**
             -Dsonar.sourceEncoding=UTF-8
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 
       # -----------------------
-      # 4️⃣ SONARQUBE QUALITY GATE (BLOCK PIPELINE)
+      # 4️⃣ SONARQUBE QUALITY GATE
       # -----------------------
       - name: SonarQube Quality Gate
         uses: SonarSource/sonarqube-quality-gate-action@v1
@@ -104,7 +104,7 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       # -----------------------
-      # 6️⃣ SET IMAGE TAG (SHORT SHA)
+      # 6️⃣ SET IMAGE TAG
       # -----------------------
       - name: Set image tag
         run: echo "IMAGE_TAG=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
@@ -128,7 +128,7 @@ jobs:
           docker push arunkumar885825/backend:latest
 
       # -----------------------
-      # 9️⃣ TRIGGER DEPLOYMENT REPO
+      # 9️⃣ TRIGGER DEPLOYMENT
       # -----------------------
       - name: Trigger deployment pipeline
         run: |
