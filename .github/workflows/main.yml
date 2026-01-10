@@ -142,3 +142,62 @@
 #                 "backend_tag": "'"${IMAGE_TAG}"'"
 #               }
 #             }'
+
+
+
+
+
+name: Backend Build & Push
+
+on:
+  push:
+    branches:
+      - dev
+      - test
+      - demo
+      - prod
+
+jobs:
+  build-backend:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Checkout
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2️⃣ Extract branch name
+      - name: Set branch name
+        run: |
+          echo "BRANCH_NAME=${GITHUB_REF##*/}" >> $GITHUB_ENV
+
+      # 3️⃣ Set image tag (branch + short sha)
+      - name: Set image tag
+        run: |
+          echo "IMAGE_TAG=${BRANCH_NAME}-${GITHUB_SHA::7}" >> $GITHUB_ENV
+
+      # 4️⃣ Login to Docker Hub
+      - name: Docker Login
+        run: |
+          echo "${{ secrets.DOCKER_PASSWORD }}" | docker login \
+            -u "${{ secrets.DOCKER_USERNAME }}" \
+            --password-stdin
+
+      # 5️⃣ Build backend image
+      - name: Build Backend Image
+        run: |
+          docker build \
+            -t ${{ secrets.DOCKER_USERNAME }}/backend:${{ env.IMAGE_TAG }} \
+            .
+
+      # 6️⃣ Push backend image
+      - name: Push Backend Image
+        run: |
+          docker push \
+            ${{ secrets.DOCKER_USERNAME }}/backend:${{ env.IMAGE_TAG }}
+
+      # 7️⃣ Log success
+      - name: Success message
+        run: |
+          echo "✅ Backend image pushed:"
+          echo "${{ secrets.DOCKER_USERNAME }}/backend:${{ env.IMAGE_TAG }}"
