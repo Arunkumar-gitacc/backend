@@ -198,7 +198,7 @@
 name: Backend Build & Push (Auto Versioned)
 
 permissions:
-  contents: write   # required for pushing git tags
+  contents: write
 
 on:
   push:
@@ -213,23 +213,20 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Checkout full history (needed for tags)
+      # 1️⃣ Checkout repository
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # 2️⃣ Determine branch name
+      # 2️⃣ Extract branch name
       - name: Set branch name
-        run: |
-          BRANCH="${GITHUB_REF##*/}"
-          echo "BRANCH=$BRANCH" >> "$GITHUB_ENV"
+        run: echo "BRANCH=${GITHUB_REF##*/}" >> $GITHUB_ENV
 
-      # 3️⃣ Calculate next semantic version (PATCH auto increment)
+      # 3️⃣ Calculate next semantic version (PATCH)
       - name: Calculate next version
         run: |
           git fetch --tags
-
           LAST_TAG=$(git tag -l "${BRANCH}-v*" | sort -V | tail -n 1)
 
           if [ -z "$LAST_TAG" ]; then
@@ -241,25 +238,22 @@ jobs:
             VERSION="v$MAJOR.$MINOR.$PATCH"
           fi
 
-          IMAGE_TAG="${BRANCH}-${VERSION}"
+          echo "IMAGE_TAG=${BRANCH}-${VERSION}" >> $GITHUB_ENV
 
-          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-          echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
-
-      # 4️⃣ Configure git identity (required for tagging)
+      # 4️⃣ Configure git identity
       - name: Configure git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      # 5️⃣ Create and push git tag (safe)
+      # 5️⃣ Create and push git tag
       - name: Create git tag
         run: |
-          if git rev-parse "$IMAGE_TAG" >/dev/null 2>&1; then
-            echo "Tag $IMAGE_TAG already exists, skipping"
+          if git rev-parse "${IMAGE_TAG}" >/dev/null 2>&1; then
+            echo "Tag ${IMAGE_TAG} already exists, skipping"
           else
-            git tag "$IMAGE_TAG"
-            git push origin "$IMAGE_TAG"
+            git tag "${IMAGE_TAG}"
+            git push origin "${IMAGE_TAG}"
           fi
 
       # 6️⃣ Docker login
@@ -269,23 +263,18 @@ jobs:
             -u "${{ secrets.DOCKER_USERNAME }}" \
             --password-stdin
 
-      # 7️⃣ Build image name safely (NO inline secrets later)
-      - name: Set image name
-        run: |
-          IMAGE="${{ secrets.DOCKER_USERNAME }}/backend:${{ env.IMAGE_TAG }}"
-          printf "IMAGE=%s\n" "$IMAGE" >> "$GITHUB_ENV"
-
-      # 8️⃣ Build backend Docker image
+      # 7️⃣ Build backend Docker image
       - name: Build backend image
+        env:
+          IMAGE: "${{ secrets.DOCKER_USERNAME }}/backend:${{ env.IMAGE_TAG }}"
         run: docker build -t "$IMAGE" .
 
-      # 9️⃣ Push backend Docker image
+      # 8️⃣ Push backend Docker image
       - name: Push backend image
+        env:
+          IMAGE: "${{ secrets.DOCKER_USERNAME }}/backend:${{ env.IMAGE_TAG }}"
         run: docker push "$IMAGE"
 
-      # 🔟 Success log
+      # 9️⃣ Success message
       - name: Success
-        run: |
-          echo "✅ Backend image built and pushed successfully"
-          echo "$IMAGE"
-
+        run: echo "✅ Backend image pushed: ${{ secrets.DOCKER_USERNAME }}/backend:${{ env.IMAGE_TAG }}"
