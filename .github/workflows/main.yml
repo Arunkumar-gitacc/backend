@@ -148,11 +148,12 @@ jobs:
             -u "${{ secrets.DOCKER_USERNAME }}" \
             --password-stdin
 
+      
       - name: Build backend image
-        run: |
-          docker build \
-            -t ${{ secrets.DOCKER_USERNAME }}/backend:${{ env.IMAGE_TAG }} \
-            .
+        env:
+         IMAGE: "${{ secrets.DOCKER_USERNAME }}/backend:${{ env.IMAGE_TAG }}"
+        run: docker build -t "$IMAGE" .
+
 
       - name: Push backend image
         run: |
