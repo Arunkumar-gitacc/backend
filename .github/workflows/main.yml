@@ -86,109 +86,193 @@
 #                 "backend_tag": "'"${IMAGE_TAG}"'"
 #               }
 #             }'
-name: Backend CI - Build & Trigger Deploy (with SonarQube)
+
+
+# name: Backend CI - Build & Trigger Deploy (with SonarQube)
+
+# on:
+#   push:
+#     branches:
+#       - demo
+
+# permissions:
+#   contents: read
+
+# jobs:
+#   build:
+#     runs-on: ubuntu-latest
+
+#     steps:
+#       # -----------------------
+#       # 1️⃣ CHECKOUT CODE
+#       # -----------------------
+#       - name: Checkout code
+#         uses: actions/checkout@v4
+#         with:
+#           fetch-depth: 0
+
+#       # -----------------------
+#       # 2️⃣ SETUP JAVA
+#       # -----------------------
+#       - name: Setup Java
+#         uses: actions/setup-java@v4
+#         with:
+#           distribution: temurin
+#           java-version: 17
+
+#       # -----------------------
+#       # 3️⃣ SONARQUBE SCAN (JAVA EXCLUDED)
+#       # -----------------------
+#       - name: SonarQube Scan
+#         uses: SonarSource/sonarqube-scan-action@v2
+#         with:
+#           args: >
+#             -Dsonar.projectKey=backend
+#             -Dsonar.projectName=backend
+#             -Dsonar.sources=.
+#             -Dsonar.exclusions=**/*.java,**/target/**,**/node_modules/**
+#             -Dsonar.sourceEncoding=UTF-8
+#         env:
+#           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+#           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+#       # -----------------------
+#       # 4️⃣ SONARQUBE QUALITY GATE
+#       # -----------------------
+#       - name: SonarQube Quality Gate
+#         uses: SonarSource/sonarqube-quality-gate-action@v1
+#         timeout-minutes: 5
+#         env:
+#           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+#           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+#       # -----------------------
+#       # 5️⃣ LOGIN TO DOCKER HUB
+#       # -----------------------
+#       - name: Login to Docker Hub
+#         uses: docker/login-action@v3
+#         with:
+#           username: ${{ secrets.DOCKER_USERNAME }}
+#           password: ${{ secrets.DOCKER_PASSWORD }}
+
+#       # -----------------------
+#       # 6️⃣ SET IMAGE TAG
+#       # -----------------------
+#       - name: Set image tag
+#         run: echo "IMAGE_TAG=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
+#       # -----------------------
+#       # 7️⃣ BUILD BACKEND IMAGE
+#       # -----------------------
+#       - name: Build backend image
+#         run: |
+#           docker build \
+#             -t arunkumar885825/backend:${IMAGE_TAG} \
+#             -t arunkumar885825/backend:latest \
+#             .
+
+#       # -----------------------
+#       # 8️⃣ PUSH BACKEND IMAGE
+#       # -----------------------
+#       - name: Push backend image
+#         run: |
+#           docker push arunkumar885825/backend:${IMAGE_TAG}
+#           docker push arunkumar885825/backend:latest
+
+#       # -----------------------
+#       # 9️⃣ TRIGGER DEPLOYMENT
+#       # -----------------------
+#       - name: Trigger deployment pipeline
+#         run: |
+#           curl -X POST \
+#             -H "Authorization: token ${{ secrets.DEPLOYMENT_REPO_TOKEN }}" \
+#             -H "Accept: application/vnd.github.v3+json" \
+#             https://api.github.com/repos/arunkumar-gitacc/deployment/dispatches \
+#             -d '{
+#               "event_type": "backend_updated",
+#               "client_payload": {
+#                 "backend_tag": "'"${IMAGE_TAG}"'"
+#               }
+#             }'
+
+
+name: Backend Build & Push (Auto Versioned)
+
+permissions:
+  contents: write   # REQUIRED to create & push git tags
 
 on:
   push:
     branches:
+      - dev
+      - test
       - demo
-
-permissions:
-  contents: read
+      - prod
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      # -----------------------
-      # 1️⃣ CHECKOUT CODE
-      # -----------------------
+      # 1️⃣ Checkout full history (needed for tags)
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # -----------------------
-      # 2️⃣ SETUP JAVA
-      # -----------------------
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
+      # 2️⃣ Determine branch name
+      - name: Set branch name
+        run: |
+          BRANCH=${GITHUB_REF##*/}
+          echo "BRANCH=$BRANCH" >> $GITHUB_ENV
 
-      # -----------------------
-      # 3️⃣ SONARQUBE SCAN (JAVA EXCLUDED)
-      # -----------------------
-      - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@v2
-        with:
-          args: >
-            -Dsonar.projectKey=backend
-            -Dsonar.projectName=backend
-            -Dsonar.sources=.
-            -Dsonar.exclusions=**/*.java,**/target/**,**/node_modules/**
-            -Dsonar.sourceEncoding=UTF-8
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+      # 3️⃣ Get latest semantic version for this branch
+      - name: Calculate next version
+        run: |
+          git fetch --tags
 
-      # -----------------------
-      # 4️⃣ SONARQUBE QUALITY GATE
-      # -----------------------
-      - name: SonarQube Quality Gate
-        uses: SonarSource/sonarqube-quality-gate-action@v1
-        timeout-minutes: 5
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          LAST_TAG=$(git tag -l "${BRANCH}-v*" | sort -V | tail -n 1)
 
-      # -----------------------
-      # 5️⃣ LOGIN TO DOCKER HUB
-      # -----------------------
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          if [ -z "$LAST_TAG" ]; then
+            VERSION="v1.0.0"
+          else
+            BASE_VERSION=${LAST_TAG#*-v}
+            IFS='.' read MAJOR MINOR PATCH <<< "$BASE_VERSION"
+            PATCH=$((PATCH + 1))
+            VERSION="v$MAJOR.$MINOR.$PATCH"
+          fi
 
-      # -----------------------
-      # 6️⃣ SET IMAGE TAG
-      # -----------------------
-      - name: Set image tag
-        run: echo "IMAGE_TAG=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "IMAGE_TAG=${BRANCH}-$VERSION" >> $GITHUB_ENV
 
-      # -----------------------
-      # 7️⃣ BUILD BACKEND IMAGE
-      # -----------------------
+      # 4️⃣ Create and push git tag
+      - name: Create git tag
+        run: |
+          git tag "${IMAGE_TAG}"
+          git push origin "${IMAGE_TAG}"
+
+      # 5️⃣ Docker login
+      - name: Docker login
+        run: |
+          echo "${{ secrets.DOCKER_PASSWORD }}" | docker login \
+            -u "${{ secrets.DOCKER_USERNAME }}" \
+            --password-stdin
+
+      # 6️⃣ Build backend Docker image
       - name: Build backend image
         run: |
           docker build \
-            -t arunkumar885825/backend:${IMAGE_TAG} \
-            -t arunkumar885825/backend:latest \
+            -t ${{ secrets.DOCKER_USERNAME }}/backend:${{ env.IMAGE_TAG }} \
             .
 
-      # -----------------------
-      # 8️⃣ PUSH BACKEND IMAGE
-      # -----------------------
+      # 7️⃣ Push backend Docker image
       - name: Push backend image
         run: |
-          docker push arunkumar885825/backend:${IMAGE_TAG}
-          docker push arunkumar885825/backend:latest
+          docker push \
+            ${{ secrets.DOCKER_USERNAME }}/backend:${{ env.IMAGE_TAG }}
 
-      # -----------------------
-      # 9️⃣ TRIGGER DEPLOYMENT
-      # -----------------------
-      - name: Trigger deployment pipeline
+      # 8️⃣ Success log
+      - name: Success
         run: |
-          curl -X POST \
-            -H "Authorization: token ${{ secrets.DEPLOYMENT_REPO_TOKEN }}" \
-            -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/arunkumar-gitacc/deployment/dispatches \
-            -d '{
-              "event_type": "backend_updated",
-              "client_payload": {
-                "backend_tag": "'"${IMAGE_TAG}"'"
-              }
-            }'
+          echo "✅ Backend image built and pushed:"
+          echo "${{ secrets.DOCKER_USERNAME }}/backend:${{ env.IMAGE_TAG }}"
