@@ -258,7 +258,7 @@ jobs:
             -u "${{ secrets.DOCKER_USERNAME }}" \
             --password-stdin
 
-      # 6️⃣ Build backend Docker image
+      # 6️⃣ Build backend Docker images
       - name: Build backend image
         run: |
           docker build \
