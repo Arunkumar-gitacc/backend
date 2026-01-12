@@ -157,7 +157,7 @@ jobs:
       - name: Push backend image
         run: |
           docker push ${{ secrets.DOCKER_USERNAME }}/backend:${{ env.IMAGE_TAG }}
-
+      #njn
       - name: Success
         run: |
           echo "✅ Backend image built and pushed:"
