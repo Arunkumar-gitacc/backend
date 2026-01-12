@@ -272,7 +272,7 @@ jobs:
       # 7️⃣ Build image name safely (CRITICAL FIX)
       - name: Set image name
         run: |
-          IMAGE=${{ secrets.DOCKER_USERNAME }}/backend:${{ env.IMAGE_TAG }}
+          IMAGE="${{ secrets.DOCKER_USERNAME }}/backend:${{ env.IMAGE_TAG }}"
           echo "IMAGE=$IMAGE" >> $GITHUB_ENV
 
       # 8️⃣ Build backend Docker image (NO inline secrets)
