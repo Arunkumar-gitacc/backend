@@ -349,13 +349,15 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # 8. Build and Push Docker image
       - name: Build and Push
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/backend:${{ env.IMAGE_TAG }}
+          # Added a check to ensure we don't have a leading slash
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/backend:${{ env.IMAGE_TAG }}
+            ${{ secrets.DOCKER_USERNAME }}/backend:${{ env.BRANCH }}-latest
 
       # 9. Success output
       - name: Success Summary
