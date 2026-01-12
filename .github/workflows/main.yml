@@ -342,7 +342,7 @@ jobs:
           git tag "${{ env.IMAGE_TAG }}"
           git push origin "${{ env.IMAGE_TAG }}"
 
-      # 7. Login to Docker Hub (Using the dedicated Action is more secure)
+      # 7. Login to Docker Hub (Using the dedicated1 Action is more secure)
       - name: Docker login
         uses: docker/login-action@v3
         with:
