@@ -9,7 +9,7 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {
-        // Allow requests from React frontend only
+        // Allow requests from React frontend only(1)
         registry.addMapping("/**")  // Allows all endpoints to accept CORS
             .allowedOrigins("*")  // Replace with your React app URL
             .allowedMethods("GET", "POST", "PUT", "DELETE")  // Specify allowed HTTP methods
