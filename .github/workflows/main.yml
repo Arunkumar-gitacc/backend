@@ -290,7 +290,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout with full history (needed for tags)
+      # 1. Checkout with full history (needed for tags))
       - name: Checkout code
         uses: actions/checkout@v4
         with:
