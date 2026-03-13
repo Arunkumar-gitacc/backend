@@ -366,7 +366,7 @@
 #           echo "✅ Docker Image: ${{ secrets.DOCKER_USERNAME }}/backend:${{ env.IMAGE_TAG }}"
 
 
-#       - name: Trigger EC2 Deployment
+#       - name: Trigger EC2 Deployment1
 #         run: |
 #           curl -X POST "https://api.github.com/repos/Arunkumar-gitacc/deployment/dispatches" \
 #             -H "Accept: application/vnd.github+json" \
