@@ -272,6 +272,98 @@
 
 
 
+# name: Build & Push Image (Auto Versioned)
+
+# permissions:
+#   contents: write  
+
+# on:
+#   push:
+#     branches:
+#       - dev
+#       - test
+#       - demo
+#       - prod
+
+# jobs:
+#   build:
+#     runs-on: ubuntu-latest
+
+#     steps:
+#       # 1. Checkout with full history (needed for tags)
+#       - name: Checkout code
+#         uses: actions/checkout@v4
+#         with:
+#           fetch-depth: 0
+
+#       # 2. Set up Java Environment (Required to build the .jar file)
+#       - name: Set up JDK 17
+#         uses: actions/setup-java@v4
+#         with:
+#           java-version: '17'
+#           distribution: 'temurin'
+#           cache: 'maven'
+
+#       # 3. Build the JAR file
+#       - name: Build with Maven
+#         run: mvn clean package -DskipTests
+
+#       # 4. Determine branch name
+#       - name: Set branch name
+#         run: |
+#           BRANCH=${GITHUB_REF##*/}
+#           echo "BRANCH=$BRANCH" >> $GITHUB_ENV
+
+#       # 5. Get latest semantic version for this branch
+#       - name: Get latest version
+#         run: |
+#           git fetch --tags
+#           # Look for tags specifically for this branch: e.g., dev-v1.0.1
+#           LAST_TAG=$(git tag -l "${BRANCH}-v*" | sort -V | tail -n 1)
+
+#           if [ -z "$LAST_TAG" ]; then
+#             VERSION="v1.0.0"
+#           else
+#             # Extract version after the branch name and '-v'
+#             BASE_VERSION=${LAST_TAG#*-v}
+#             IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_VERSION"
+#             PATCH=$((PATCH + 1))
+#             VERSION="v$MAJOR.$MINOR.$PATCH"
+#           fi
+
+#           echo "VERSION=$VERSION" >> $GITHUB_ENV
+#           echo "IMAGE_TAG=${BRANCH}-$VERSION" >> $GITHUB_ENV
+
+#       # 6. Create git tag (Configuring user is essential here)
+#       - name: Create and push git tag
+#         run: |
+#           git config user.name "github-actions[bot]"
+#           git config user.email "github-actions[bot]@users.noreply.github.com"
+#           git tag "${{ env.IMAGE_TAG }}"
+#           git push origin "${{ env.IMAGE_TAG }}"
+
+#       # 7. Login to Docker Hub (Using the dedicated1 Action is more secure)
+#       - name: Docker login
+#         uses: docker/login-action@v3
+#         with:
+#           username: ${{ secrets.DOCKER_USERNAME }}
+#           password: ${{ secrets.DOCKER_PASSWORD }}
+
+#       - name: Build and Push
+#         uses: docker/build-push-action@v5
+#         with:
+#           context: .
+#           push: true
+#           # Added a check to ensure we don't have a leading slash
+#           tags: |
+#             ${{ secrets.DOCKER_USERNAME }}/backend:${{ env.IMAGE_TAG }}
+#             ${{ secrets.DOCKER_USERNAME }}/backend:${{ env.BRANCH }}-latest
+
+#       # 9. Success output
+#       - name: Success Summary
+#         run: |
+#           echo "✅ Version Released: ${{ env.IMAGE_TAG }}"
+#           echo "✅ Docker Image: ${{ secrets.DOCKER_USERNAME }}/backend:${{ env.IMAGE_TAG }}"
 name: Build & Push Image (Auto Versioned)
 
 permissions:
@@ -285,18 +377,20 @@ on:
       - demo
       - prod
 
+env:
+  DEPLOYMENT_REPO: Arunkumar-gitacc/deployment
+  MANIFEST_FILE: backend/deployment.yaml
+
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout with full history (needed for tags)
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # 2. Set up Java Environment (Required to build the .jar file)
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -304,27 +398,22 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
-      # 3. Build the JAR file
       - name: Build with Maven
         run: mvn clean package -DskipTests
 
-      # 4. Determine branch name
       - name: Set branch name
         run: |
           BRANCH=${GITHUB_REF##*/}
           echo "BRANCH=$BRANCH" >> $GITHUB_ENV
 
-      # 5. Get latest semantic version for this branch
       - name: Get latest version
         run: |
           git fetch --tags
-          # Look for tags specifically for this branch: e.g., dev-v1.0.1
           LAST_TAG=$(git tag -l "${BRANCH}-v*" | sort -V | tail -n 1)
 
           if [ -z "$LAST_TAG" ]; then
             VERSION="v1.0.0"
           else
-            # Extract version after the branch name and '-v'
             BASE_VERSION=${LAST_TAG#*-v}
             IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_VERSION"
             PATCH=$((PATCH + 1))
@@ -334,33 +423,43 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "IMAGE_TAG=${BRANCH}-$VERSION" >> $GITHUB_ENV
 
-      # 6. Create git tag (Configuring user is essential here)
-      - name: Create and push git tag
+      - name: Create version tag
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag "${{ env.IMAGE_TAG }}"
           git push origin "${{ env.IMAGE_TAG }}"
 
-      # 7. Login to Docker Hub (Using the dedicated1 Action is more secure)
       - name: Docker login
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build and Push
+      - name: Build and Push Docker Image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          # Added a check to ensure we don't have a leading slash
-          tags: |
-            ${{ secrets.DOCKER_USERNAME }}/backend:${{ env.IMAGE_TAG }}
-            ${{ secrets.DOCKER_USERNAME }}/backend:${{ env.BRANCH }}-latest
+          tags: ${{ secrets.DOCKER_USERNAME }}/backend:${{ env.IMAGE_TAG }}
 
-      # 9. Success output
-      - name: Success Summary
+      - name: Checkout ArgoCD Deployment Repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.DEPLOYMENT_REPO }}
+          token: ${{ secrets.ARGOCD_REPO_PAT }}
+          path: deployment-repo
+
+      - name: Update Backend Tag in Manifest
         run: |
-          echo "✅ Version Released: ${{ env.IMAGE_TAG }}"
-          echo "✅ Docker Image: ${{ secrets.DOCKER_USERNAME }}/backend:${{ env.IMAGE_TAG }}"
+          cd deployment-repo
+          yq eval '.spec.template.spec.containers[0].image = "'"${{ secrets.DOCKER_USERNAME }}/backend:${{ env.IMAGE_TAG }}"'"' -i ${{ env.MANIFEST_FILE }}
+
+      - name: Commit and Push to ArgoCD Repo
+        run: |
+          cd deployment-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ${{ env.MANIFEST_FILE }}
+          git diff-index --quiet HEAD || git commit -m "ci(backend): update image tag to ${{ env.IMAGE_TAG }}"
+          git push
